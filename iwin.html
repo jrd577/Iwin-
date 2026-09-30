@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Iwin</title>
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#F26A1B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Iwin">
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#ECEFE9;--ink:#1B2A26;--mute:#5F6F69;--card:#F8FAF6;--line:#CDD5CE;--win:#0E6B5A;--best:#C7860A;--on:#fff;
@@ -15,6 +22,8 @@ html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:'Bricolage Grotesque',system-ui,-apple-system,sans-serif;line-height:1.4}
 main{max-width:560px;margin:0 auto;padding:20px 16px 40px}
 h1{font-size:15px;font-weight:600;color:var(--mute);margin:0 0 4px}
+.logo{margin:0 0 10px}
+.logo svg{display:block;height:44px;width:auto}
 .day{font-size:44px;font-weight:800;letter-spacing:-.02em;margin:0}
 .today{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:16px 0}
 .count{font-size:64px;font-weight:800;line-height:1;color:var(--win)}
@@ -37,17 +46,37 @@ svg text{fill:var(--mute);font-family:inherit}
 .bar{cursor:pointer}
 .legend{font-size:13px;color:var(--mute);margin:8px 0 0}
 .sw{display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--best);margin-right:4px}
+.prog{height:10px;border-radius:6px;background:var(--line);overflow:hidden;margin-top:12px}
+.prog i{display:block;height:100%;width:0;background:var(--win);border-radius:6px;transition:width .25s}
+.prog.done i{background:var(--best)}
+.tline{font-size:14px;color:var(--mute);margin:6px 0 0}
+.tline.done{color:var(--best);font-weight:600}
+.tset{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tset button{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--ink);font:800 20px inherit;font-family:inherit;cursor:pointer}
+.tset input{width:72px;text-align:center;font:800 20px inherit;font-family:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px}
+.tset .clr{width:auto;padding:0 12px;font-size:14px;font-weight:400;color:var(--mute)}
+.tnote{font-size:13px;color:var(--mute);margin:8px 0 0}
 label{font-size:13px;color:var(--mute)}
 input[type=date]{font:inherit;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;margin-left:8px}
 </style>
 </head>
 <body>
 <main>
-<h1>Iwin</h1>
+<h1 class="logo"><svg viewBox="20 10 208 98" role="img" aria-label="Iwin">
+  <g fill="none" stroke="#F26A1B" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M32 24V96"/>
+    <path d="M56 46L70 96L88 62L106 96L120 46"/>
+    <path d="M144 46V96"/>
+    <path d="M172 96V46M172 68Q172 46 194 46Q216 46 216 68V96"/>
+  </g>
+  <circle cx="144" cy="24" r="7.5" fill="#F26A1B"/>
+</svg></h1>
 <p class="day" id="dayNo"></p>
 
 <section class="today">
   <div class="count"><span id="cnt">0</span><small>wins today</small></div>
+  <div class="prog" id="prog" hidden><i id="progBar"></i></div>
+  <p class="tline" id="tline" hidden></p>
   <div class="ticks" id="ticks"></div>
   <button class="win" id="win">I won a battle</button>
   <div class="row"><button class="ghost" id="undo">Undo last win</button></div>
@@ -61,10 +90,19 @@ input[type=date]{font:inherit;background:var(--card);color:var(--ink);border:1px
 
 <h2>Wins per day</h2>
 <div class="chart" id="chart"></div>
-<p class="legend"><span class="sw"></span>Gold is your best day. Tap any bar to see its ticks.</p>
+<p class="legend"><span class="sw"></span>Gold is your best day. The dashed line is your target and &#9733; marks days you hit it. Tap any bar to see its ticks.</p>
 
 <h2 id="selTitle"></h2>
 <div class="ticks" id="selTicks"></div>
+
+<h2>Daily target</h2>
+<div class="tset">
+  <button id="tMinus" aria-label="Decrease target">&minus;</button>
+  <input type="number" id="target" min="0" max="999" inputmode="numeric" placeholder="0" aria-label="Daily target">
+  <button id="tPlus" aria-label="Increase target">+</button>
+  <button class="clr" id="tClear">No target</button>
+</div>
+<p class="tnote" id="tnote"></p>
 
 <h2>Start date</h2>
 <label>Counting from<input type="date" id="start"></label>
@@ -76,7 +114,8 @@ function pad(n){return n<10?'0'+n:''+n}
 function ymd(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
 function parse(s){var p=s.split('-');return new Date(+p[0],+p[1]-1,+p[2],12)}
 function load(){try{var r=localStorage.getItem(KEY);if(r){var o=JSON.parse(r);if(o&&o.start&&o.wins)return o}}catch(e){}return null}
-var state=load()||{start:ymd(new Date()),wins:{}};
+var state=load()||{start:ymd(new Date()),wins:{},target:0};
+state.target=Math.max(0,Math.floor(+state.target)||0);
 function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
 var sel=ymd(new Date());
 function $(id){return document.getElementById(id)}
@@ -107,16 +146,31 @@ function render(){
   $('streak').textContent=streak;
   $('best').textContent=best;
   $('start').value=state.start;
-  var bw=26,gap=10,H=170,top=22,bot=22,max=Math.max(best,1),W=list.length*(bw+gap)+gap;
+  var T=state.target,tc=w[today]||0,done=T>0&&tc>=T;
+  $('prog').hidden=!T;$('tline').hidden=!T;
+  if(T){
+    $('prog').className='prog'+(done?' done':'');
+    $('progBar').style.width=Math.min(100,tc/T*100)+'%';
+    $('tline').className='tline'+(done?' done':'');
+    $('tline').textContent=done?'Target hit: '+tc+' of '+T+(tc>T?' (+'+(tc-T)+' extra)':''):tc+' of '+T+' \u2022 '+(T-tc)+' to go';
+  }
+  if(document.activeElement!==$('target'))$('target').value=T||'';
+  var hit=0;if(T)list.forEach(function(k){if((w[k]||0)>=T)hit++});
+  $('tnote').textContent=T?'Hit on '+hit+' of '+list.length+' days. Changing the target updates past days too.':'Set a number of wins to aim for each day.';
+  var bw=26,gap=10,H=170,top=22,bot=30,max=Math.max(best,T,1),W=list.length*(bw+gap)+gap;
   var s='<svg width="'+Math.max(W,300)+'" height="'+(H+top+bot)+'" role="img" aria-label="Wins per day">';
   s+='<line x1="0" x2="'+Math.max(W,300)+'" y1="'+(top+H)+'" y2="'+(top+H)+'" stroke="var(--line)"/>';
+  if(T){var ty=top+H-T/max*H;
+    s+='<line x1="0" x2="'+Math.max(W,300)+'" y1="'+ty+'" y2="'+ty+'" stroke="var(--best)" stroke-dasharray="5 4" stroke-width="1.5"/>'
+     +'<text x="4" y="'+(ty-4)+'" font-size="10" style="fill:var(--best)">Target '+T+'</text>';}
   list.forEach(function(k,i){
     var c=w[k]||0,h=c?Math.max(4,c/max*H):2,x=gap+i*(bw+gap),y=top+H-h;
     var isBest=best>0&&c===best,fill=isBest?'var(--best)':'var(--win)';
+    var met=T>0&&c>=T;
     s+='<g class="bar" data-k="'+k+'"><rect x="'+(x-4)+'" y="0" width="'+(bw+8)+'" height="'+(H+top+bot)+'" fill="transparent"/>'
      +'<rect x="'+x+'" y="'+y+'" width="'+bw+'" height="'+h+'" rx="5" fill="'+fill+'" opacity="'+(c?1:.35)+'"'+(k===sel?' stroke="var(--ink)" stroke-width="2"':'')+'/>';
     if(c)s+='<text x="'+(x+bw/2)+'" y="'+(y-6)+'" font-size="12" font-weight="800" text-anchor="middle" style="fill:'+(isBest?'var(--best)':'var(--ink)')+'">'+c+'</text>';
-    s+='<text x="'+(x+bw/2)+'" y="'+(top+H+15)+'" font-size="10" text-anchor="middle">'+k.slice(8)+'</text></g>';
+    s+='<text x="'+(x+bw/2)+'" y="'+(top+H+15)+'" font-size="10" text-anchor="middle">'+k.slice(8)+'</text>'+(met?'<text x="'+(x+bw/2)+'" y="'+(top+H+27)+'" font-size="10" text-anchor="middle" style="fill:var(--best)">\u2605</text>':'')+'</g>';
   });
   s+='</svg>';
   $('chart').innerHTML=s;
@@ -130,6 +184,11 @@ function render(){
 }
 $('win').onclick=function(){var t=ymd(new Date());state.wins[t]=(state.wins[t]||0)+1;sel=t;save();render()};
 $('undo').onclick=function(){var t=ymd(new Date());if(state.wins[t]>0){state.wins[t]--;if(!state.wins[t])delete state.wins[t];save();render()}};
+function setTarget(v){state.target=Math.max(0,Math.min(999,Math.floor(+v)||0));save();render()}
+$('target').onchange=function(){setTarget(this.value)};
+$('tPlus').onclick=function(){setTarget(state.target+1)};
+$('tMinus').onclick=function(){setTarget(state.target-1)};
+$('tClear').onclick=function(){setTarget(0)};
 $('start').onchange=function(){if(this.value&&this.value<=ymd(new Date())){state.start=this.value;save();render.done=0;render()}else render()};
 render();
 </script>
