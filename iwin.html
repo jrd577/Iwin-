@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Iwin</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#ECEFE9;--ink:#1B2A26;--mute:#5F6F69;--card:#F8FAF6;--line:#CDD5CE;--win:#0E6B5A;--best:#C7860A;--on:#fff;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111917;--ink:#E6EDE9;--mute:#94A49D;--card:#1A2522;--line:#2C3B36;--win:#3CC2A5;--best:#F0B23A;--on:#06201A}}
+:root[data-theme="dark"]{--bg:#111917;--ink:#E6EDE9;--mute:#94A49D;--card:#1A2522;--line:#2C3B36;--win:#3CC2A5;--best:#F0B23A;--on:#06201A}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Bricolage Grotesque',system-ui,-apple-system,sans-serif;line-height:1.4}
+main{max-width:560px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:15px;font-weight:600;color:var(--mute);margin:0 0 4px}
+.day{font-size:44px;font-weight:800;letter-spacing:-.02em;margin:0}
+.today{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:16px 0}
+.count{font-size:64px;font-weight:800;line-height:1;color:var(--win)}
+.count small{font-size:16px;font-weight:400;color:var(--mute);margin-left:8px}
+.ticks{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;min-height:30px}
+.tick{width:30px;height:30px;border-radius:8px;background:var(--win);color:var(--on);display:grid;place-items:center;font-weight:800}
+.empty{color:var(--mute);font-size:14px}
+.win{width:100%;border:0;border-radius:14px;background:var(--win);color:var(--on);font:800 20px inherit;font-family:inherit;padding:20px;cursor:pointer;margin-top:14px}
+.win:active{transform:scale(.98)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--best);outline-offset:2px}
+.row{display:flex;gap:10px;margin-top:10px}
+.ghost{flex:1;background:none;border:1px solid var(--line);color:var(--mute);border-radius:10px;padding:10px;font:inherit;cursor:pointer}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px}
+.stat b{display:block;font-size:24px}
+.stat span{font-size:12px;color:var(--mute)}
+h2{font-size:16px;margin:22px 0 8px}
+.chart{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:8px 4px}
+svg text{fill:var(--mute);font-family:inherit}
+.bar{cursor:pointer}
+.legend{font-size:13px;color:var(--mute);margin:8px 0 0}
+.sw{display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--best);margin-right:4px}
+label{font-size:13px;color:var(--mute)}
+input[type=date]{font:inherit;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;margin-left:8px}
+</style>
+</head>
+<body>
+<main>
+<h1>Iwin</h1>
+<p class="day" id="dayNo"></p>
+
+<section class="today">
+  <div class="count"><span id="cnt">0</span><small>wins today</small></div>
+  <div class="ticks" id="ticks"></div>
+  <button class="win" id="win">I won a battle</button>
+  <div class="row"><button class="ghost" id="undo">Undo last win</button></div>
+</section>
+
+<div class="stats">
+  <div class="stat"><b id="total">0</b><span>total wins</span></div>
+  <div class="stat"><b id="streak">0</b><span>day streak</span></div>
+  <div class="stat"><b id="best">0</b><span>best day</span></div>
+</div>
+
+<h2>Wins per day</h2>
+<div class="chart" id="chart"></div>
+<p class="legend"><span class="sw"></span>Gold is your best day. Tap any bar to see its ticks.</p>
+
+<h2 id="selTitle"></h2>
+<div class="ticks" id="selTicks"></div>
+
+<h2>Start date</h2>
+<label>Counting from<input type="date" id="start"></label>
+</main>
+
+<script>
+var KEY='discipline-monitor-v1';
+function pad(n){return n<10?'0'+n:''+n}
+function ymd(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+function parse(s){var p=s.split('-');return new Date(+p[0],+p[1]-1,+p[2],12)}
+function load(){try{var r=localStorage.getItem(KEY);if(r){var o=JSON.parse(r);if(o&&o.start&&o.wins)return o}}catch(e){}return null}
+var state=load()||{start:ymd(new Date()),wins:{}};
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
+var sel=ymd(new Date());
+function $(id){return document.getElementById(id)}
+function days(){
+  var out=[],d=parse(state.start),end=parse(ymd(new Date()));
+  if(d>end){state.start=ymd(end);d=end}
+  while(d<=end){out.push(ymd(d));d=new Date(d.getFullYear(),d.getMonth(),d.getDate()+1,12)}
+  return out;
+}
+function ticksHTML(n){
+  if(!n)return '<span class="empty">No wins yet.</span>';
+  var h='';for(var i=0;i<n;i++)h+='<span class="tick">\u2713</span>';return h;
+}
+function render(){
+  var list=days(),today=ymd(new Date()),w=state.wins;
+  var total=0,best=0;
+  list.forEach(function(k){var c=w[k]||0;total+=c;if(c>best)best=c});
+  var streak=0;
+  for(var i=list.length-1;i>=0;i--){
+    if((w[list[i]]||0)>0)streak++;
+    else if(list[i]===today)continue;
+    else break;
+  }
+  $('dayNo').textContent='Day '+list.length;
+  $('cnt').textContent=w[today]||0;
+  $('ticks').innerHTML=ticksHTML(w[today]||0);
+  $('total').textContent=total;
+  $('streak').textContent=streak;
+  $('best').textContent=best;
+  $('start').value=state.start;
+  var bw=26,gap=10,H=170,top=22,bot=22,max=Math.max(best,1),W=list.length*(bw+gap)+gap;
+  var s='<svg width="'+Math.max(W,300)+'" height="'+(H+top+bot)+'" role="img" aria-label="Wins per day">';
+  s+='<line x1="0" x2="'+Math.max(W,300)+'" y1="'+(top+H)+'" y2="'+(top+H)+'" stroke="var(--line)"/>';
+  list.forEach(function(k,i){
+    var c=w[k]||0,h=c?Math.max(4,c/max*H):2,x=gap+i*(bw+gap),y=top+H-h;
+    var isBest=best>0&&c===best,fill=isBest?'var(--best)':'var(--win)';
+    s+='<g class="bar" data-k="'+k+'"><rect x="'+(x-4)+'" y="0" width="'+(bw+8)+'" height="'+(H+top+bot)+'" fill="transparent"/>'
+     +'<rect x="'+x+'" y="'+y+'" width="'+bw+'" height="'+h+'" rx="5" fill="'+fill+'" opacity="'+(c?1:.35)+'"'+(k===sel?' stroke="var(--ink)" stroke-width="2"':'')+'/>';
+    if(c)s+='<text x="'+(x+bw/2)+'" y="'+(y-6)+'" font-size="12" font-weight="800" text-anchor="middle" style="fill:'+(isBest?'var(--best)':'var(--ink)')+'">'+c+'</text>';
+    s+='<text x="'+(x+bw/2)+'" y="'+(top+H+15)+'" font-size="10" text-anchor="middle">'+k.slice(8)+'</text></g>';
+  });
+  s+='</svg>';
+  $('chart').innerHTML=s;
+  var bars=$('chart').querySelectorAll('.bar');
+  for(var j=0;j<bars.length;j++)bars[j].onclick=function(){sel=this.getAttribute('data-k');render()};
+  if(!render.done){$('chart').scrollLeft=$('chart').scrollWidth;render.done=1}
+  var sc=w[sel]||0;
+  var idx=list.indexOf(sel);
+  $('selTitle').textContent=(sel===today?'Today':'Day '+(idx+1)+' \u2022 '+sel)+': '+sc+(sc===1?' win':' wins');
+  $('selTicks').innerHTML=ticksHTML(sc);
+}
+$('win').onclick=function(){var t=ymd(new Date());state.wins[t]=(state.wins[t]||0)+1;sel=t;save();render()};
+$('undo').onclick=function(){var t=ymd(new Date());if(state.wins[t]>0){state.wins[t]--;if(!state.wins[t])delete state.wins[t];save();render()}};
+$('start').onchange=function(){if(this.value&&this.value<=ymd(new Date())){state.start=this.value;save();render.done=0;render()}else render()};
+render();
+</script>
+</body>
+</html>
